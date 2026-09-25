@@ -29,13 +29,13 @@
         android:gravity="center"
         android:layoutDirection="rtl">
 
-        <!-- 1. زر النهاية (End) - سيظهر على اليمين في العربية -->
+        <!-- 1. زر النهاية (End) -->
         <ImageButton
             android:id="@+id/btn_end"
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:src="@android:drawable/ic_menu_send"
+            android:src="?android:attr/actionModeSelectAllDrawable"
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="End" />
 
@@ -45,7 +45,7 @@
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:src="@android:drawable/ic_media_next"
+            android:src="?android:attr/actionModeStyle"
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="Right" />
 
@@ -55,7 +55,7 @@
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:src="@android:drawable/ic_menu_edit"
+            android:src="?android:attr/actionModeSelectAllDrawable"
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="Select" />
 
@@ -65,7 +65,7 @@
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:src="?android:attr/actionModeCloseDrawable"
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="Clear" />
 
@@ -75,7 +75,7 @@
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:src="@android:drawable/ic_menu_paste"
+            android:src="?android:attr/actionModePasteDrawable"
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="Paste" />
 
@@ -85,7 +85,7 @@
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:src="@android:drawable/ic_menu_crop"
+            android:src="?android:attr/actionModeCopyDrawable"
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="Copy" />
 
@@ -95,17 +95,17 @@
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:src="@android:drawable/ic_media_previous"
+            android:src="?android:attr/actionModeStyle"
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="Left" />
 
-        <!-- 8. زر البداية (Home) - سيظهر على اليسار في العربية -->
+        <!-- 8. زر البداية (Home) -->
         <ImageButton
             android:id="@+id/btn_home"
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:src="@android:drawable/ic_menu_upload"
+            android:src="?android:attr/actionModeWebSearchDrawable"
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="Home" />
 
@@ -168,6 +168,7 @@
             android:layout_gravity="top"
             />
     </helium314.keyboard.latin.KeyboardWrapperView>
+
     <LinearLayout
         android:id="@+id/float_handle_container"
         android:orientation="horizontal"
