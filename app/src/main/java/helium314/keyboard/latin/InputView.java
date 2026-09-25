@@ -26,6 +26,7 @@ import helium314.keyboard.latin.settings.Settings;
 import helium314.keyboard.latin.suggestions.MoreSuggestionsView;
 import helium314.keyboard.latin.suggestions.SuggestionStripView;
 import helium314.keyboard.latin.utils.FloatingKeyboardUtils;
+import helium314.keyboard.latin.RichInputConnection;
 import kotlin.Unit;
 
 
@@ -58,9 +59,10 @@ public final class InputView extends FrameLayout {
         setupToolbarButtons();
     }
 
-    // الحصول على InputConnection الخاص باللوحة
+    // الحصول على InputConnection الخاص باللوحة بشكل صحيح
     private InputConnection getInputConnection() {
-        return LatinIME.getRichInputConnection().mIC;
+        RichInputConnection ric = RichInputConnection.getInstance();
+        return ric != null ? ric.mIC : null;
     }
 
     // دالة مساعدة لإرسال أوامر التنقل (KeyEvent)
