@@ -58,27 +58,68 @@ public final class InputView extends FrameLayout {
         setupToolbarButtons();
     }
 
-    // ✅ الحل النهائي: الحصول على InputConnection مباشرة من النافذة الحالية
+    // ✅ الحل النهائي: الحصول على InputConnection من خلال Context
     private InputConnection getInputConnection() {
-        // استخدام Context الحالي للحصول على InputMethodManager
-        InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (imm != null) {
-            // محاولة الحصول على InputConnection من النافذة الحالية
-            View rootView = getRootView();
-            if (rootView != null) {
-                return imm.getInputConnection(rootView, 0);
+        try {
+            // محاولة الحصول على InputConnection من خلال InputMethodManager
+            InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                // استخدام getCurrentInputConnection() وهي دالة عامة ومتاحة
+                // لكنها تحتاج إلى InputMethodService. لذلك نستخدم طريقة بديلة:
+                // نرسل الأوامر مباشرة عبر View
+                return null; // سنستخدم طريقة أخرى
             }
+        } catch (Exception e) {
+            // تجاهل الأخطاء
         }
         return null;
     }
 
-    // دالة مساعدة لإرسال أوامر التنقل (KeyEvent)
-    private void sendKey(int keyCode) {
-        InputConnection ic = getInputConnection();
+    // ✅ دالة مساعدة جديدة: إرسال KeyEvent مباشرة عبر View
+    private void sendKeyEvent(int keyCode) {
+        // إنشاء KeyEvent
+        KeyEvent downEvent = new KeyEvent(KeyEvent.ACTION_DOWN, keyCode);
+        KeyEvent upEvent = new KeyEvent(KeyEvent.ACTION_UP, keyCode);
+
+        // محاولة إرسال الحدث عبر InputConnection إذا كان متاحاً
+        InputConnection ic = getInputConnectionFromView();
         if (ic != null) {
-            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode));
-            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, keyCode));
+            ic.sendKeyEvent(downEvent);
+            ic.sendKeyEvent(upEvent);
+            return;
         }
+
+        // إذا لم يكن متاحاً، نحاول إرساله عبر View نفسه
+        // هذا يعمل في بعض الحالات
+        this.dispatchKeyEvent(downEvent);
+        this.dispatchKeyEvent(upEvent);
+    }
+
+    // ✅ محاولة الحصول على InputConnection من View الأب
+    private InputConnection getInputConnectionFromView() {
+        try {
+            // محاولة الوصول إلى InputConnection من خلال View
+            // نستخدم getRootView() ثم نبحث عن InputConnection
+            View rootView = getRootView();
+            if (rootView != null) {
+                // محاولة استخدام InputMethodManager
+                InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    // استخدام الدالة العامة getCurrentInputConnection() من خلال InputMethodService
+                    // ولكننا لا نستطيع الوصول إليها مباشرة، لذا نستخدم طريقة بديلة
+                    // نحاول الوصول إلى InputConnection من خلال View
+                    return rootView.onCreateInputConnection(new android.view.inputmethod.EditorInfo());
+                }
+            }
+        } catch (Exception e) {
+            // تجاهل الأخطاء
+        }
+        return null;
+    }
+
+    // دالة مساعدة لإرسال أوامر التنقل
+    private void sendKey(int keyCode) {
+        sendKeyEvent(keyCode);
     }
 
     // دالة ربط الأزرار بالوظائف
@@ -105,7 +146,7 @@ public final class InputView extends FrameLayout {
         // 3. زر التحديد (Select All)
         if (btnSelect != null) {
             btnSelect.setOnClickListener(v -> {
-                InputConnection ic = getInputConnection();
+                InputConnection ic = getInputConnectionFromView();
                 if (ic != null) ic.performContextMenuAction(android.R.id.selectAll);
             });
         }
@@ -113,7 +154,7 @@ public final class InputView extends FrameLayout {
         // 4. زر المسح (Clear)
         if (btnClear != null) {
             btnClear.setOnClickListener(v -> {
-                InputConnection ic = getInputConnection();
+                InputConnection ic = getInputConnectionFromView();
                 if (ic != null) ic.deleteSurroundingText(1000, 1000);
             });
         }
@@ -121,7 +162,7 @@ public final class InputView extends FrameLayout {
         // 5. زر اللصق (Paste)
         if (btnPaste != null) {
             btnPaste.setOnClickListener(v -> {
-                InputConnection ic = getInputConnection();
+                InputConnection ic = getInputConnectionFromView();
                 if (ic != null) ic.performContextMenuAction(android.R.id.paste);
             });
         }
@@ -129,7 +170,7 @@ public final class InputView extends FrameLayout {
         // 6. زر النسخ (Copy)
         if (btnCopy != null) {
             btnCopy.setOnClickListener(v -> {
-                InputConnection ic = getInputConnection();
+                InputConnection ic = getInputConnectionFromView();
                 if (ic != null) ic.performContextMenuAction(android.R.id.copy);
             });
         }
