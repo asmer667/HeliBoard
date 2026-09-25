@@ -13,7 +13,6 @@ import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -58,20 +57,21 @@ public final class InputView extends FrameLayout {
         setupToolbarButtons();
     }
 
-    // الحصول على InputConnection عبر LatinIME المشترك في التطبيق
+    // ✅ الحل الجذري: الحصول على InputConnection مباشرة من LatinIME
     private InputConnection getInputConnection() {
-        if (RichInputMethodManager.getInstance().isInputConnected()) {
-            return RichInputMethodManager.getInstance().getRichInputConnection();
+        LatinIME latinIme = LatinIME.getInstance();
+        if (latinIme != null) {
+            return latinIme.getCurrentInputConnection();
         }
         return null;
     }
 
     // دالة مساعدة لإرسال أوامر التنقل (KeyEvent)
     private void sendKey(int keyCode) {
-        RichInputMethodManager imm = RichInputMethodManager.getInstance();
-        if (imm.isInputConnected()) {
-            imm.getRichInputConnection().sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode));
-            imm.getRichInputConnection().sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, keyCode));
+        InputConnection ic = getInputConnection();
+        if (ic != null) {
+            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode));
+            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, keyCode));
         }
     }
 
@@ -86,8 +86,6 @@ public final class InputView extends FrameLayout {
         ImageButton btnLeft = findViewById(R.id.btn_left);
         ImageButton btnHome = findViewById(R.id.btn_home);
 
-        RichInputMethodManager imm = RichInputMethodManager.getInstance();
-
         // 1. زر النهاية (End)
         if (btnEnd != null) {
             btnEnd.setOnClickListener(v -> sendKey(KeyEvent.KEYCODE_MOVE_END));
@@ -101,36 +99,32 @@ public final class InputView extends FrameLayout {
         // 3. زر التحديد (Select All)
         if (btnSelect != null) {
             btnSelect.setOnClickListener(v -> {
-                if (imm.isInputConnected()) {
-                    imm.getRichInputConnection().performContextMenuAction(android.R.id.selectAll);
-                }
+                InputConnection ic = getInputConnection();
+                if (ic != null) ic.performContextMenuAction(android.R.id.selectAll);
             });
         }
 
         // 4. زر المسح (Clear)
         if (btnClear != null) {
             btnClear.setOnClickListener(v -> {
-                if (imm.isInputConnected()) {
-                    imm.getRichInputConnection().deleteSurroundingText(1000, 1000);
-                }
+                InputConnection ic = getInputConnection();
+                if (ic != null) ic.deleteSurroundingText(1000, 1000);
             });
         }
 
         // 5. زر اللصق (Paste)
         if (btnPaste != null) {
             btnPaste.setOnClickListener(v -> {
-                if (imm.isInputConnected()) {
-                    imm.getRichInputConnection().performContextMenuAction(android.R.id.paste);
-                }
+                InputConnection ic = getInputConnection();
+                if (ic != null) ic.performContextMenuAction(android.R.id.paste);
             });
         }
 
         // 6. زر النسخ (Copy)
         if (btnCopy != null) {
             btnCopy.setOnClickListener(v -> {
-                if (imm.isInputConnected()) {
-                    imm.getRichInputConnection().performContextMenuAction(android.R.id.copy);
-                }
+                InputConnection ic = getInputConnection();
+                if (ic != null) ic.performContextMenuAction(android.R.id.copy);
             });
         }
 
