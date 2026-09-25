@@ -59,7 +59,8 @@ public final class InputView extends FrameLayout {
 
     // ✅ الحل الجذري: الحصول على InputConnection مباشرة من LatinIME
     private InputConnection getInputConnection() {
-        LatinIME latinIme = LatinIME.getInstance();
+        // استخدام الدالة الرسمية من LatinIME مباشرة
+        LatinIME latinIme = LatinIME.getLatinIME();
         if (latinIme != null) {
             return latinIme.getCurrentInputConnection();
         }
