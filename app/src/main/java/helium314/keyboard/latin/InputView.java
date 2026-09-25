@@ -58,9 +58,14 @@ public final class InputView extends FrameLayout {
         setupToolbarButtons();
     }
 
+    // الحصول على InputConnection الخاص باللوحة
+    private InputConnection getInputConnection() {
+        return LatinIME.getRichInputConnection().mIC;
+    }
+
     // دالة مساعدة لإرسال أوامر التنقل (KeyEvent)
     private void sendKey(int keyCode) {
-        InputConnection ic = getCurrentInputConnection();
+        InputConnection ic = getInputConnection();
         if (ic != null) {
             ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode));
             ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, keyCode));
@@ -78,54 +83,54 @@ public final class InputView extends FrameLayout {
         ImageButton btnLeft = findViewById(R.id.btn_left);
         ImageButton btnHome = findViewById(R.id.btn_home);
 
-        // زر النهاية (End)
+        // 1. زر النهاية (End)
         if (btnEnd != null) {
             btnEnd.setOnClickListener(v -> sendKey(KeyEvent.KEYCODE_MOVE_END));
         }
 
-        // زر اليمين (Right)
+        // 2. زر اليمين (Right)
         if (btnRight != null) {
             btnRight.setOnClickListener(v -> sendKey(KeyEvent.KEYCODE_DPAD_RIGHT));
         }
 
-        // زر التحديد (Select All)
+        // 3. زر التحديد (Select All)
         if (btnSelect != null) {
             btnSelect.setOnClickListener(v -> {
-                InputConnection ic = getCurrentInputConnection();
+                InputConnection ic = getInputConnection();
                 if (ic != null) ic.performContextMenuAction(android.R.id.selectAll);
             });
         }
 
-        // زر المسح (Clear)
+        // 4. زر المسح (Clear)
         if (btnClear != null) {
             btnClear.setOnClickListener(v -> {
-                InputConnection ic = getCurrentInputConnection();
+                InputConnection ic = getInputConnection();
                 if (ic != null) ic.deleteSurroundingText(1000, 1000);
             });
         }
 
-        // زر اللصق (Paste)
+        // 5. زر اللصق (Paste)
         if (btnPaste != null) {
             btnPaste.setOnClickListener(v -> {
-                InputConnection ic = getCurrentInputConnection();
+                InputConnection ic = getInputConnection();
                 if (ic != null) ic.performContextMenuAction(android.R.id.paste);
             });
         }
 
-        // زر النسخ (Copy)
+        // 6. زر النسخ (Copy)
         if (btnCopy != null) {
             btnCopy.setOnClickListener(v -> {
-                InputConnection ic = getCurrentInputConnection();
+                InputConnection ic = getInputConnection();
                 if (ic != null) ic.performContextMenuAction(android.R.id.copy);
             });
         }
 
-        // زر اليسار (Left)
+        // 7. زر اليسار (Left)
         if (btnLeft != null) {
             btnLeft.setOnClickListener(v -> sendKey(KeyEvent.KEYCODE_DPAD_LEFT));
         }
 
-        // زر البداية (Home)
+        // 8. زر البداية (Home)
         if (btnHome != null) {
             btnHome.setOnClickListener(v -> sendKey(KeyEvent.KEYCODE_MOVE_HOME));
         }
@@ -139,8 +144,6 @@ public final class InputView extends FrameLayout {
     protected boolean dispatchHoverEvent(final MotionEvent event) {
         if (AccessibilityUtils.Companion.getInstance().isTouchExplorationEnabled()
                 && mMainKeyboardView.isShowingPopupKeysPanel()) {
-            // With accessibility mode on, discard hover events while a popup keys keyboard is shown.
-            // The {@link PopupKeysKeyboard} receives hover events directly from the platform.
             return true;
         }
         return super.dispatchHoverEvent(event);
@@ -154,15 +157,11 @@ public final class InputView extends FrameLayout {
         final int x = (int)me.getX(index) + rect.left;
         final int y = (int)me.getY(index) + rect.top;
 
-        // The touch events that hit the top padding of keyboard should be forwarded to
-        // {@link SuggestionStripView}.
         if (mKeyboardTopPaddingForwarder.onInterceptTouchEvent(x, y, me)) {
             mActiveForwarder = mKeyboardTopPaddingForwarder;
             return true;
         }
 
-        // To cancel {@link MoreSuggestionsView}, we should intercept a touch event to
-        // {@link MainKeyboardView} and dismiss the {@link MoreSuggestionsView}.
         if (mMoreSuggestionsViewCanceler.onInterceptTouchEvent(x, y, me)) {
             mActiveForwarder = mMoreSuggestionsViewCanceler;
             return true;
@@ -190,23 +189,13 @@ public final class InputView extends FrameLayout {
     private Unit onNextLayout(View v) {
         Settings.getValues().mColors.setBackground(findViewById(R.id.main_keyboard_frame), ColorType.MAIN_BACKGROUND);
 
-        // Work around inset application being unreliable
         requestApplyInsets();
 
-        // need to update the floating keyboard position after applying insets
         if (Settings.getValues().mIsFloatingKeyboard)
             FloatingKeyboardUtils.setFloating(this);
         return null;
     }
 
-    /**
-     * This class forwards series of {@link MotionEvent}s from <code>SenderView</code> to
-     * <code>ReceiverView</code>.
-     *
-     * @param <SenderView> a {@link View} that may send a {@link MotionEvent} to <ReceiverView>.
-     * @param <ReceiverView> a {@link View} that receives forwarded {@link MotionEvent} from
-     *     <SenderView>.
-     */
     private static abstract class
             MotionEventForwarder<SenderView extends View, ReceiverView extends View> {
         protected final SenderView mSenderView;
@@ -220,30 +209,19 @@ public final class InputView extends FrameLayout {
             mReceiverView = receiverView;
         }
 
-        // Return true if a touch event of global coordinate x, y needs to be forwarded.
         protected abstract boolean needsToForward(final int x, final int y);
 
-        // Translate global x-coordinate to <code>ReceiverView</code> local coordinate.
         protected int translateX(final int x) {
             return x - mEventReceivingRect.left;
         }
 
-        // Translate global y-coordinate to <code>ReceiverView</code> local coordinate.
         protected int translateY(final int y) {
             return y - mEventReceivingRect.top;
         }
 
-        /**
-         * Callback when a {@link MotionEvent} is forwarded.
-         * @param me the motion event to be forwarded.
-         */
         protected void onForwardingEvent(final MotionEvent me) {}
 
-        // Returns true if a {@link MotionEvent} is needed to be forwarded to
-        // <code>ReceiverView</code>. Otherwise returns false.
         public boolean onInterceptTouchEvent(final int x, final int y, final MotionEvent me) {
-            // Forwards a {link MotionEvent} only if both <code>SenderView</code> and
-            // <code>ReceiverView</code> are visible.
             if (mSenderView.getVisibility() != View.VISIBLE ||
                     mReceiverView.getVisibility() != View.VISIBLE) {
                 return false;
@@ -254,19 +232,14 @@ public final class InputView extends FrameLayout {
             }
 
             if (me.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                // If the down event happens in the forwarding area, successive
-                // {@link MotionEvent}s should be forwarded to <code>ReceiverView</code>.
                 return needsToForward(x, y);
             }
 
             return false;
         }
 
-        // Returns true if a {@link MotionEvent} is forwarded to <code>ReceiverView</code>.
-        // Otherwise returns false.
         public boolean onTouchEvent(final int x, final int y, final MotionEvent me) {
             mReceiverView.getGlobalVisibleRect(mEventReceivingRect);
-            // Translate global coordinates to <code>ReceiverView</code> local coordinates.
             me.setLocation(translateX(x), translateY(y));
             mReceiverView.dispatchTouchEvent(me);
             onForwardingEvent(me);
@@ -274,10 +247,6 @@ public final class InputView extends FrameLayout {
         }
     }
 
-    /**
-     * This class forwards {@link MotionEvent}s happened in the top padding of
-     * {@link MainKeyboardView} to {@link SuggestionStripView}.
-     */
     private static class KeyboardTopPaddingForwarder
             extends MotionEventForwarder<MainKeyboardView, SuggestionStripView> {
         private int mKeyboardTopPadding;
@@ -297,10 +266,6 @@ public final class InputView extends FrameLayout {
 
         @Override
         protected boolean needsToForward(final int x, final int y) {
-            // Forwarding an event only when {@link MainKeyboardView} is visible.
-            // Because the visibility of {@link MainKeyboardView} is controlled by its parent
-            // view in {@link KeyboardSwitcher#setMainKeyboardFrame()}, we should check the
-            // visibility of the parent view.
             final View mainKeyboardFrame = (View)mSenderView.getParent();
             return mainKeyboardFrame.getVisibility() == View.VISIBLE && isInKeyboardTopPadding(y);
         }
@@ -309,19 +274,12 @@ public final class InputView extends FrameLayout {
         protected int translateY(final int y) {
             final int translatedY = super.translateY(y);
             if (isInKeyboardTopPadding(y)) {
-                // The forwarded event should have coordinates that are inside of the target.
                 return Math.min(translatedY, mEventReceivingRect.height() - 1);
             }
             return translatedY;
         }
     }
 
-    /**
-     * This class forwards {@link MotionEvent}s happened in the {@link MainKeyboardView} to
-     * {@link SuggestionStripView} when the {@link MoreSuggestionsView} is showing.
-     * {@link SuggestionStripView} dismisses {@link MoreSuggestionsView} when it receives any event
-     * outside of it.
-     */
     private static class MoreSuggestionsViewCanceler
             extends MotionEventForwarder<MainKeyboardView, SuggestionStripView> {
         public MoreSuggestionsViewCanceler(final MainKeyboardView mainKeyboardView,
