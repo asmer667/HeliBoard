@@ -13,6 +13,7 @@ import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -27,7 +28,6 @@ import helium314.keyboard.latin.suggestions.MoreSuggestionsView;
 import helium314.keyboard.latin.suggestions.SuggestionStripView;
 import helium314.keyboard.latin.utils.FloatingKeyboardUtils;
 import kotlin.Unit;
-
 
 public final class InputView extends FrameLayout {
     private final Rect mInputViewRect = new Rect();
@@ -58,21 +58,20 @@ public final class InputView extends FrameLayout {
         setupToolbarButtons();
     }
 
-    // الحصول على InputConnection عبر LatinIME instance
+    // الحصول على InputConnection عبر LatinIME المشترك في التطبيق
     private InputConnection getInputConnection() {
-        LatinIME latinIme = LatinIME.getInstance();
-        if (latinIme != null) {
-            return latinIme.getCurrentInputConnection();
+        if (RichInputMethodManager.getInstance().isInputConnected()) {
+            return RichInputMethodManager.getInstance().getRichInputConnection();
         }
         return null;
     }
 
     // دالة مساعدة لإرسال أوامر التنقل (KeyEvent)
     private void sendKey(int keyCode) {
-        InputConnection ic = getInputConnection();
-        if (ic != null) {
-            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode));
-            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, keyCode));
+        RichInputMethodManager imm = RichInputMethodManager.getInstance();
+        if (imm.isInputConnected()) {
+            imm.getRichInputConnection().sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode));
+            imm.getRichInputConnection().sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, keyCode));
         }
     }
 
@@ -87,6 +86,8 @@ public final class InputView extends FrameLayout {
         ImageButton btnLeft = findViewById(R.id.btn_left);
         ImageButton btnHome = findViewById(R.id.btn_home);
 
+        RichInputMethodManager imm = RichInputMethodManager.getInstance();
+
         // 1. زر النهاية (End)
         if (btnEnd != null) {
             btnEnd.setOnClickListener(v -> sendKey(KeyEvent.KEYCODE_MOVE_END));
@@ -100,32 +101,36 @@ public final class InputView extends FrameLayout {
         // 3. زر التحديد (Select All)
         if (btnSelect != null) {
             btnSelect.setOnClickListener(v -> {
-                InputConnection ic = getInputConnection();
-                if (ic != null) ic.performContextMenuAction(android.R.id.selectAll);
+                if (imm.isInputConnected()) {
+                    imm.getRichInputConnection().performContextMenuAction(android.R.id.selectAll);
+                }
             });
         }
 
         // 4. زر المسح (Clear)
         if (btnClear != null) {
             btnClear.setOnClickListener(v -> {
-                InputConnection ic = getInputConnection();
-                if (ic != null) ic.deleteSurroundingText(1000, 1000);
+                if (imm.isInputConnected()) {
+                    imm.getRichInputConnection().deleteSurroundingText(1000, 1000);
+                }
             });
         }
 
         // 5. زر اللصق (Paste)
         if (btnPaste != null) {
             btnPaste.setOnClickListener(v -> {
-                InputConnection ic = getInputConnection();
-                if (ic != null) ic.performContextMenuAction(android.R.id.paste);
+                if (imm.isInputConnected()) {
+                    imm.getRichInputConnection().performContextMenuAction(android.R.id.paste);
+                }
             });
         }
 
         // 6. زر النسخ (Copy)
         if (btnCopy != null) {
             btnCopy.setOnClickListener(v -> {
-                InputConnection ic = getInputConnection();
-                if (ic != null) ic.performContextMenuAction(android.R.id.copy);
+                if (imm.isInputConnected()) {
+                    imm.getRichInputConnection().performContextMenuAction(android.R.id.copy);
+                }
             });
         }
 
