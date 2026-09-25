@@ -14,6 +14,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.InputConnection;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 
@@ -57,12 +58,16 @@ public final class InputView extends FrameLayout {
         setupToolbarButtons();
     }
 
-    // ✅ الحل الجذري: الحصول على InputConnection مباشرة من LatinIME
+    // ✅ الحل النهائي: الحصول على InputConnection مباشرة من النافذة الحالية
     private InputConnection getInputConnection() {
-        // استخدام الدالة الرسمية من LatinIME مباشرة
-        LatinIME latinIme = LatinIME.getLatinIME();
-        if (latinIme != null) {
-            return latinIme.getCurrentInputConnection();
+        // استخدام Context الحالي للحصول على InputMethodManager
+        InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            // محاولة الحصول على InputConnection من النافذة الحالية
+            View rootView = getRootView();
+            if (rootView != null) {
+                return imm.getInputConnection(rootView, 0);
+            }
         }
         return null;
     }
