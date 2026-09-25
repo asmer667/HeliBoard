@@ -1,191 +1,305 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
-    Copyright (C) 2014 The Android Open Source Project
-    modified
-    SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
--->
+/*
+ * Copyright (C) 2011 The Android Open Source Project
+ * modified
+ * SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
+ */
 
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_gravity="bottom"
-    android:orientation="vertical" >
+package helium314.keyboard.latin;
 
-    <!-- شريط الاقتراحات (Suggestion Strip) -->
-    <include
-        android:id="@+id/strip_container"
-        layout="@layout/strip_container" />
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.graphics.Rect;
+import android.util.AttributeSet;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.inputmethod.InputConnection;
+import android.widget.FrameLayout;
+import android.widget.ImageButton;
 
-    <!-- ============================================== -->
-    <!-- شريط الأدوات الثابت (بين الاقتراحات ولوحة المفاتيح) -->
-    <!-- ============================================== -->
-    <LinearLayout
-        android:id="@+id/top_toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:orientation="horizontal"
-        android:background="#2C2C2C"
-        android:gravity="center"
-        android:layoutDirection="rtl">
+import androidx.core.view.ViewKt;
 
-        <!-- 1. زر النهاية (End) -->
-        <ImageButton
-            android:id="@+id/btn_end"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:src="?android:attr/actionModeSelectAllDrawable"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="End" />
+import helium314.keyboard.accessibility.AccessibilityUtils;
+import helium314.keyboard.keyboard.MainKeyboardView;
+import helium314.keyboard.latin.common.ColorType;
+import helium314.keyboard.latin.settings.Settings;
+import helium314.keyboard.latin.suggestions.MoreSuggestionsView;
+import helium314.keyboard.latin.suggestions.SuggestionStripView;
+import helium314.keyboard.latin.utils.FloatingKeyboardUtils;
+import kotlin.Unit;
 
-        <!-- 2. زر اليمين (Right) -->
-        <ImageButton
-            android:id="@+id/btn_right"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:src="?android:attr/actionModeStyle"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Right" />
+public final class InputView extends FrameLayout {
+    private final Rect mInputViewRect = new Rect();
+    private MainKeyboardView mMainKeyboardView;
+    private KeyboardTopPaddingForwarder mKeyboardTopPaddingForwarder;
+    private MoreSuggestionsViewCanceler mMoreSuggestionsViewCanceler;
+    private MotionEventForwarder<?, ?> mActiveForwarder;
 
-        <!-- 3. زر التحديد (Select) -->
-        <ImageButton
-            android:id="@+id/btn_select"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:src="?android:attr/actionModeSelectAllDrawable"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Select" />
+    public InputView(final Context context, final AttributeSet attrs) {
+        super(context, attrs, 0);
+    }
 
-        <!-- 4. زر المسح (Clear) -->
-        <ImageButton
-            android:id="@+id/btn_clear"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:src="?android:attr/actionModeCloseDrawable"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Clear" />
+    @Override
+    protected void onFinishInflate() {
+        super.onFinishInflate();
+        final SuggestionStripView suggestionStripView =
+                findViewById(R.id.suggestion_strip_view);
+        mMainKeyboardView = findViewById(R.id.keyboard_view);
+        mKeyboardTopPaddingForwarder = new KeyboardTopPaddingForwarder(
+                mMainKeyboardView, suggestionStripView);
+        mMoreSuggestionsViewCanceler = new MoreSuggestionsViewCanceler(
+                mMainKeyboardView, suggestionStripView);
+        ViewKt.doOnNextLayout(this, this::onNextLayout);
 
-        <!-- 5. زر اللصق (Paste) -->
-        <ImageButton
-            android:id="@+id/btn_paste"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:src="?android:attr/actionModePasteDrawable"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Paste" />
+        // ==========================================================
+        // ربط أزرار شريط الأدوات الجديد
+        // ==========================================================
+        setupToolbarButtons();
+    }
 
-        <!-- 6. زر النسخ (Copy) -->
-        <ImageButton
-            android:id="@+id/btn_copy"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:src="?android:attr/actionModeCopyDrawable"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Copy" />
+    // ✅ الحل الجذري: الحصول على InputConnection مباشرة من LatinIME
+    private InputConnection getInputConnection() {
+        LatinIME latinIme = LatinIME.getInstance();
+        if (latinIme != null) {
+            return latinIme.getCurrentInputConnection();
+        }
+        return null;
+    }
 
-        <!-- 7. زر اليسار (Left) -->
-        <ImageButton
-            android:id="@+id/btn_left"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:src="?android:attr/actionModeStyle"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Left" />
+    // دالة مساعدة لإرسال أوامر التنقل (KeyEvent)
+    private void sendKey(int keyCode) {
+        InputConnection ic = getInputConnection();
+        if (ic != null) {
+            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode));
+            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, keyCode));
+        }
+    }
 
-        <!-- 8. زر البداية (Home) -->
-        <ImageButton
-            android:id="@+id/btn_home"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:src="?android:attr/actionModeWebSearchDrawable"
-            android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Home" />
+    // دالة ربط الأزرار بالوظائف
+    private void setupToolbarButtons() {
+        ImageButton btnEnd = findViewById(R.id.btn_end);
+        ImageButton btnRight = findViewById(R.id.btn_right);
+        ImageButton btnSelect = findViewById(R.id.btn_select);
+        ImageButton btnClear = findViewById(R.id.btn_clear);
+        ImageButton btnPaste = findViewById(R.id.btn_paste);
+        ImageButton btnCopy = findViewById(R.id.btn_copy);
+        ImageButton btnLeft = findViewById(R.id.btn_left);
+        ImageButton btnHome = findViewById(R.id.btn_home);
 
-    </LinearLayout>
+        // 1. زر النهاية (End)
+        if (btnEnd != null) {
+            btnEnd.setOnClickListener(v -> sendKey(KeyEvent.KEYCODE_MOVE_END));
+        }
 
-    <!-- To ensure that key preview popup is correctly placed when the current system locale is
-         one of RTL locales, layoutDirection="ltr" is needed in the SDK version 17+. -->
-    <helium314.keyboard.latin.KeyboardWrapperView
-        android:id="@+id/keyboard_view_wrapper"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layoutDirection="ltr" >
+        // 2. زر اليمين (Right)
+        if (btnRight != null) {
+            btnRight.setOnClickListener(v -> sendKey(KeyEvent.KEYCODE_DPAD_RIGHT));
+        }
 
-        <helium314.keyboard.keyboard.MainKeyboardView
-            android:id="@+id/keyboard_view"
-            android:layoutDirection="ltr"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-        <include
-            android:id="@+id/emoji_palettes_view"
-            layout="@layout/emoji_palettes_view" />
-        <include
-            android:id="@+id/clipboard_history_view"
-            layout="@layout/clipboard_history_view" />
+        // 3. زر التحديد (Select All)
+        if (btnSelect != null) {
+            btnSelect.setOnClickListener(v -> {
+                InputConnection ic = getInputConnection();
+                if (ic != null) ic.performContextMenuAction(android.R.id.selectAll);
+            });
+        }
 
-        <ImageButton
-            android:id="@+id/btn_stop_one_handed_mode"
-            android:contentDescription="@string/label_stop_onehanded_mode_key"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:scaleType="fitCenter"
-            style="?attr/suggestionWordStyle" />
+        // 4. زر المسح (Clear)
+        if (btnClear != null) {
+            btnClear.setOnClickListener(v -> {
+                InputConnection ic = getInputConnection();
+                if (ic != null) ic.deleteSurroundingText(1000, 1000);
+            });
+        }
 
-        <ImageButton
-            android:id="@+id/btn_switch_one_handed_mode"
-            android:contentDescription="@string/label_switch_onehanded_key"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:scaleType="fitCenter"
-            style="?attr/suggestionWordStyle" />
+        // 5. زر اللصق (Paste)
+        if (btnPaste != null) {
+            btnPaste.setOnClickListener(v -> {
+                InputConnection ic = getInputConnection();
+                if (ic != null) ic.performContextMenuAction(android.R.id.paste);
+            });
+        }
 
-        <ImageButton
-            android:id="@+id/btn_resize_one_handed_mode"
-            android:contentDescription="@string/label_resize_onehanded_key"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:scaleType="fitCenter"
-            style="?attr/suggestionWordStyle" />
+        // 6. زر النسخ (Copy)
+        if (btnCopy != null) {
+            btnCopy.setOnClickListener(v -> {
+                InputConnection ic = getInputConnection();
+                if (ic != null) ic.performContextMenuAction(android.R.id.copy);
+            });
+        }
 
-        <ImageView
-            android:id="@+id/backgroundGatheringIndicator"
-            android:visibility="visible"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:src="@drawable/btn_keyboard_key_action_normal_lxx_base"
-            android:tint="#a00000"
-            android:layout_gravity="top"
-            />
-    </helium314.keyboard.latin.KeyboardWrapperView>
+        // 7. زر اليسار (Left)
+        if (btnLeft != null) {
+            btnLeft.setOnClickListener(v -> sendKey(KeyEvent.KEYCODE_DPAD_LEFT));
+        }
 
-    <LinearLayout
-        android:id="@+id/float_handle_container"
-        android:orientation="horizontal"
-        android:visibility="gone"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-        <ImageView
-            android:id="@+id/resize_handle"
-            android:layout_weight="1"
-            android:layout_width="wrap_content"
-            android:layout_height="@dimen/config_floating_handle_height"
-            android:src="@drawable/ic_arrow_horizontal"/>
-        <ImageView
-            android:id="@+id/drag_handle"
-            android:layout_weight="1"
-            android:layout_width="wrap_content"
-            android:layout_height="@dimen/config_floating_handle_height"
-            android:src="@drawable/ic_drag_indicator"/>
-    </LinearLayout>
-</LinearLayout>
+        // 8. زر البداية (Home)
+        if (btnHome != null) {
+            btnHome.setOnClickListener(v -> sendKey(KeyEvent.KEYCODE_MOVE_HOME));
+        }
+    }
+
+    public void setKeyboardTopPadding(final int keyboardTopPadding) {
+        mKeyboardTopPaddingForwarder.setKeyboardTopPadding(keyboardTopPadding);
+    }
+
+    @Override
+    protected boolean dispatchHoverEvent(final MotionEvent event) {
+        if (AccessibilityUtils.Companion.getInstance().isTouchExplorationEnabled()
+                && mMainKeyboardView.isShowingPopupKeysPanel()) {
+            return true;
+        }
+        return super.dispatchHoverEvent(event);
+    }
+
+    @Override
+    public boolean onInterceptTouchEvent(final MotionEvent me) {
+        final Rect rect = mInputViewRect;
+        getGlobalVisibleRect(rect);
+        final int index = me.getActionIndex();
+        final int x = (int)me.getX(index) + rect.left;
+        final int y = (int)me.getY(index) + rect.top;
+
+        if (mKeyboardTopPaddingForwarder.onInterceptTouchEvent(x, y, me)) {
+            mActiveForwarder = mKeyboardTopPaddingForwarder;
+            return true;
+        }
+
+        if (mMoreSuggestionsViewCanceler.onInterceptTouchEvent(x, y, me)) {
+            mActiveForwarder = mMoreSuggestionsViewCanceler;
+            return true;
+        }
+
+        mActiveForwarder = null;
+        return false;
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    @Override
+    public boolean onTouchEvent(final MotionEvent me) {
+        if (mActiveForwarder == null) {
+            return super.onTouchEvent(me);
+        }
+
+        final Rect rect = mInputViewRect;
+        getGlobalVisibleRect(rect);
+        final int index = me.getActionIndex();
+        final int x = (int)me.getX(index) + rect.left;
+        final int y = (int)me.getY(index) + rect.top;
+        return mActiveForwarder.onTouchEvent(x, y, me);
+    }
+
+    private Unit onNextLayout(View v) {
+        Settings.getValues().mColors.setBackground(findViewById(R.id.main_keyboard_frame), ColorType.MAIN_BACKGROUND);
+
+        requestApplyInsets();
+
+        if (Settings.getValues().mIsFloatingKeyboard)
+            FloatingKeyboardUtils.setFloating(this);
+        return null;
+    }
+
+    private static abstract class
+            MotionEventForwarder<SenderView extends View, ReceiverView extends View> {
+        protected final SenderView mSenderView;
+        protected final ReceiverView mReceiverView;
+
+        protected final Rect mEventSendingRect = new Rect();
+        protected final Rect mEventReceivingRect = new Rect();
+
+        public MotionEventForwarder(final SenderView senderView, final ReceiverView receiverView) {
+            mSenderView = senderView;
+            mReceiverView = receiverView;
+        }
+
+        protected abstract boolean needsToForward(final int x, final int y);
+
+        protected int translateX(final int x) {
+            return x - mEventReceivingRect.left;
+        }
+
+        protected int translateY(final int y) {
+            return y - mEventReceivingRect.top;
+        }
+
+        protected void onForwardingEvent(final MotionEvent me) {}
+
+        public boolean onInterceptTouchEvent(final int x, final int y, final MotionEvent me) {
+            if (mSenderView.getVisibility() != View.VISIBLE ||
+                    mReceiverView.getVisibility() != View.VISIBLE) {
+                return false;
+            }
+            mSenderView.getGlobalVisibleRect(mEventSendingRect);
+            if (!mEventSendingRect.contains(x, y)) {
+                return false;
+            }
+
+            if (me.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                return needsToForward(x, y);
+            }
+
+            return false;
+        }
+
+        public boolean onTouchEvent(final int x, final int y, final MotionEvent me) {
+            mReceiverView.getGlobalVisibleRect(mEventReceivingRect);
+            me.setLocation(translateX(x), translateY(y));
+            mReceiverView.dispatchTouchEvent(me);
+            onForwardingEvent(me);
+            return true;
+        }
+    }
+
+    private static class KeyboardTopPaddingForwarder
+            extends MotionEventForwarder<MainKeyboardView, SuggestionStripView> {
+        private int mKeyboardTopPadding;
+
+        public KeyboardTopPaddingForwarder(final MainKeyboardView mainKeyboardView,
+                final SuggestionStripView suggestionStripView) {
+            super(mainKeyboardView, suggestionStripView);
+        }
+
+        public void setKeyboardTopPadding(final int keyboardTopPadding) {
+            mKeyboardTopPadding = keyboardTopPadding;
+        }
+
+        private boolean isInKeyboardTopPadding(final int y) {
+            return y < mEventSendingRect.top + mKeyboardTopPadding;
+        }
+
+        @Override
+        protected boolean needsToForward(final int x, final int y) {
+            final View mainKeyboardFrame = (View)mSenderView.getParent();
+            return mainKeyboardFrame.getVisibility() == View.VISIBLE && isInKeyboardTopPadding(y);
+        }
+
+        @Override
+        protected int translateY(final int y) {
+            final int translatedY = super.translateY(y);
+            if (isInKeyboardTopPadding(y)) {
+                return Math.min(translatedY, mEventReceivingRect.height() - 1);
+            }
+            return translatedY;
+        }
+    }
+
+    private static class MoreSuggestionsViewCanceler
+            extends MotionEventForwarder<MainKeyboardView, SuggestionStripView> {
+        public MoreSuggestionsViewCanceler(final MainKeyboardView mainKeyboardView,
+                final SuggestionStripView suggestionStripView) {
+            super(mainKeyboardView, suggestionStripView);
+        }
+
+        @Override
+        protected boolean needsToForward(final int x, final int y) {
+            return mReceiverView.isShowingMoreSuggestionPanel() && mEventSendingRect.contains(x, y);
+        }
+
+        @Override
+        protected void onForwardingEvent(final MotionEvent me) {
+            if (me.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                mReceiverView.dismissMoreSuggestionsPanel();
+            }
+        }
+    }
+}
