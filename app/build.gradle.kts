@@ -5,7 +5,7 @@ plugins {
     id("com.android.application")
     kotlin("android")
     kotlin("plugin.serialization")
-    kotlin("plugin.compose")
+    id("org.jetbrains.kotlin.plugin.compose") version "2.1.0"
 }
 
 android {
